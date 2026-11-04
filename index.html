@@ -93,6 +93,7 @@
         <option value="MUZ 3">MUZ 3</option>
         <option value="BGP">BGP</option>
         <option value="A3W">A3W</option>
+        <option value="WH">WH</option>
       </select>
     </div>
 
@@ -130,6 +131,7 @@
 
 <script>
   // =====================================================
+  //  YAHAN APPS SCRIPT WEB APP KA URL PASTE KAREIN
   // =====================================================
   const API_URL = "https://script.google.com/macros/s/AKfycbxSzlnLQ9LULaOkbBe9rYW5NYnifr6gQvzTfDXLKwyscmG7zWtlxro-m19IYOQAGzxQaw/exec";
 
@@ -144,9 +146,13 @@
 
   const colNames = [
     "SUB SECTION", "SUB SECTION 2", "MAJOR CATEGORY",
-    "SUB MAJOR CATEGORY", "PATTERN", "PATTERN 2",
+    "PATTERN", "PATTERN 2",
     "FABRIC", "ADD STYLE", "CUT_FIT_STITCH_STYLE"
   ];
+
+  // DATA sheet me har dropdown ka column header ke naam se dhoondha jata hai
+  let colIdx = [];
+  const norm = s => String(s).toUpperCase().replace(/[^A-Z0-9]/g, "");
 
   window.onload = function() {
     document.getElementById("submitBtn").disabled = true;
@@ -300,6 +306,15 @@
   // ---------- DROPDOWNS ----------
   function initializeForm(data) {
     rawData = data;
+    const header = data[0] || [];
+    colIdx = colNames.map(n => header.findIndex(h => norm(h) === norm(n)));
+    const missing = colNames.filter((n, i) => colIdx[i] < 0);
+    if (missing.length) {
+      const m = document.getElementById("loadingMsg");
+      m.className = "status-msg error";
+      m.innerText = "DATA sheet me ye column nahi mile: " + missing.join(", ") + ". Header row ke naam check karein.";
+      return;
+    }
     document.getElementById("loadingMsg").style.display = "none";
 
     const container = document.getElementById("dropdown-container");
@@ -342,10 +357,10 @@
     for (let r = 1; r < rawData.length; r++) {
       let isMatch = true;
       for (let f = 0; f < filters.length; f++) {
-        if (filters[f] !== "" && String(rawData[r][f]).trim() !== filters[f]) { isMatch = false; break; }
+        if (filters[f] !== "" && String(rawData[r][colIdx[f]]).trim() !== filters[f]) { isMatch = false; break; }
       }
       if (isMatch) {
-        const val = String(rawData[r][targetColIndex - 1]).trim();
+        const val = String(rawData[r][colIdx[targetColIndex - 1]]).trim();
         if (val !== "") options.add(val);
       }
     }
