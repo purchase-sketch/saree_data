@@ -101,7 +101,7 @@
 
     <div class="field" style="margin-top: 15px;">
       <label class="main-label">COLOUR NAME</label>
-      <input type="text" id="col_colour" placeholder="Type colour name..." />
+      <input type="text" id="col_colour" placeholder="Type colour name..." onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('col_0').focus();}" />
     </div>
 
     <!-- STEP 2: Ab barcode add karte jayein -->
@@ -230,12 +230,27 @@
   // Manual / physical scanner gun: Enter dabte hi barcode list me add
   function addFromInput() {
     const inp = document.getElementById("col_0");
+    clearTimeout(bcTimer);
     if (addBarcode(inp.value)) inp.value = "";
     inp.focus();
   }
   function handleBarcodeEnter(e) {
     if (e.key === "Enter") { e.preventDefault(); addFromInput(); }
   }
+
+  // Scanner agar Enter nahi bhejta: tez aaye characters ruk jaye to apne aap add
+  let bcFirst = 0, bcLast = 0, bcTimer = null;
+  document.getElementById("col_0").addEventListener("input", () => {
+    const inp = document.getElementById("col_0");
+    const now = Date.now();
+    if (inp.value.length === 1) bcFirst = now;
+    bcLast = now;
+    clearTimeout(bcTimer);
+    bcTimer = setTimeout(() => {
+      const len = inp.value.length;
+      if (len >= 4 && (bcLast - bcFirst) / (len - 1) < 40) addFromInput();
+    }, 150);
+  });
 
   // ---------- CAMERA (lagataar scan, har barcode list me add hota rahega) ----------
   function getScanner() {
@@ -261,24 +276,34 @@
     document.getElementById("reader").style.display = "block";
     document.getElementById("scanBtn").innerText = "✖ Stop Camera";
 
-    getScanner().start(
-      { facingMode: "environment" },
-      { fps: 10, qrbox: { width: 250, height: 100 } },
-      (text) => {
-        const now = Date.now();
-        // Wahi barcode 3 second tak dobara na pade
-        if (text === lastScan.text && now - lastScan.time < 3000) return;
-        lastScan = { text: text, time: now };
-        addBarcode(text);
-      },
-      () => {}
-    ).then(() => { scanning = true; })
-     .catch(() => {
-       scanning = false;
-       document.getElementById("reader").style.display = "none";
-       document.getElementById("scanBtn").innerText = "📷 Camera Scan";
-       showHint("Camera nahi khula. Browser me is site ke liye Camera 'Allow' karein, ya '🖼 Photo' use karein.");
-     });
+    const cfg = { fps: 10, qrbox: { width: 250, height: 100 } };
+    const onScan = (text) => {
+      const now = Date.now();
+      // Wahi barcode 3 second tak dobara na pade
+      if (text === lastScan.text && now - lastScan.time < 3000) return;
+      lastScan = { text: text, time: now };
+      addBarcode(text);
+    };
+    const scanner = getScanner();
+
+    // Pehle back camera, na mile (laptop/desktop) to jo bhi camera ho wo
+    scanner.start({ facingMode: "environment" }, cfg, onScan, () => {})
+      .catch(() => Html5Qrcode.getCameras().then(cams => {
+        if (!cams || !cams.length) throw new Error("Is computer me koi camera nahi mila");
+        return scanner.start(cams[0].id, cfg, onScan, () => {});
+      }))
+      .then(() => { scanning = true; })
+      .catch(err => {
+        scanning = false;
+        document.getElementById("reader").style.display = "none";
+        document.getElementById("scanBtn").innerText = "📷 Camera Scan";
+        const reason = String((err && (err.name || err.message)) || err);
+        let tip = "Chrome me address bar ke 🔒 par click karke Camera 'Allow' karein, aur Zoom/Meet/Teams jaise app band karein jo camera use kar rahe hon.";
+        if (window.self !== window.top || location.hostname.indexOf("script.google") >= 0) {
+          tip = "Aap Apps Script wale link par ho. GitHub Pages (github.io) wala link kholein.";
+        }
+        showHint("Camera nahi khula (" + reason + "). " + tip + " Tab tak '🖼 Photo' use kar sakte hain.");
+      });
   }
 
   function stopScanner() {
